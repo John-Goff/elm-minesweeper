@@ -12,5 +12,8 @@
     "game"
   ],
   "author": "John Goff",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "http-server": "^0.11.1"
+  }
 }
