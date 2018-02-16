@@ -1,0 +1,16 @@
+{
+  "name": "elm-minesweeper",
+  "version": "1.0.0",
+  "description": "Minesweeper game made in Elm",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "elm",
+    "minesweeper",
+    "game"
+  ],
+  "author": "John Goff",
+  "license": "MIT"
+}
