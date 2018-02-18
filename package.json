@@ -4,6 +4,9 @@
   "description": "Minesweeper game made in Elm",
   "main": "index.js",
   "scripts": {
+    "start": "npm run build && npm run serve",
+    "build": "elm-make --output main.js Minesweeper.elm",
+    "serve": "http-server",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
