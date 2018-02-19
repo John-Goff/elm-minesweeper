@@ -6,7 +6,6 @@ import Html.Attributes exposing (class, id)
 import Random exposing (Generator, int, pair)
 import Json.Decode as Json
 import Task exposing (Task)
-import Trampoline
 
 
 -- msg
@@ -144,7 +143,7 @@ guess p model =
         if List.member p model.mines then
             { model | gameStatus = Waiting "Game Over!" }
         else if pointValue == 0 then
-            List.foldl guess model (surrounding p)
+            List.foldr guess model (surrounding p)
         else
             newModel
 
