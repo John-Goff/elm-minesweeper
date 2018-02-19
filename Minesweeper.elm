@@ -147,7 +147,7 @@ guess p model =
         if List.member p model.mines then
             update GameOver model
         else if pointValue == 0 then
-            ( newModel, Cmd.batch (guessEach (surrounds p)) )
+            ( newModel, Cmd.batch (guessEach (surrounding p)) )
         else
             ( newModel, Cmd.none )
 
@@ -174,7 +174,7 @@ calcValue : Point -> List Point -> Int
 calcValue point mines =
     let
         surrPoints =
-            surrounds point
+            surrounding point
     in
         List.length (List.filter (\x -> List.member x mines) surrPoints)
 
@@ -187,8 +187,8 @@ x-1y-1 xy-1 x+1y-1
 --}
 
 
-surrounds : Point -> List Point
-surrounds point =
+surrounding : Point -> List Point
+surrounding point =
     let
         ( x, y ) =
             point
