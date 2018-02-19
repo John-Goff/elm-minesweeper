@@ -5,6 +5,7 @@ import Html.Events exposing (onClick, onWithOptions)
 import Html.Attributes exposing (class, id)
 import Random exposing (Generator, int, pair)
 import Json.Decode as Json
+import Task exposing (Task)
 
 
 -- msg
@@ -34,6 +35,7 @@ newPoint size =
 type alias Model =
     { mines : List Point
     , flags : List Point
+    , revealed : List ValPoint
     , boardSize : Size
     , gameStatus : GameState
     }
@@ -47,7 +49,7 @@ type Size
 
 type GameState
     = Playing
-    | Waiting
+    | Waiting String
 
 
 type alias X =
@@ -62,12 +64,19 @@ type alias Point =
     ( X, Y )
 
 
+type alias ValPoint =
+    { value : Int
+    , point : Point
+    }
+
+
 initialModel : Model
 initialModel =
     { mines = []
     , flags = []
+    , revealed = []
     , boardSize = Small
-    , gameStatus = Waiting
+    , gameStatus = Waiting ""
     }
 
 
@@ -117,16 +126,35 @@ update msg model =
             ( { model | flags = (f :: model.flags) }, Cmd.none )
 
         Guess p ->
-            if List.member p model.mines then
-                update GameOver model
-            else
-                ( model, Cmd.none )
+            guess p model
 
         Play s ->
-            ( { model | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
+            ( { initialModel | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
 
         GameOver ->
-            ( { model | gameStatus = Waiting }, Cmd.none )
+            ( { model | gameStatus = Waiting "Game Over!" }, Cmd.none )
+
+
+guess : Point -> Model -> ( Model, Cmd Msg )
+guess p model =
+    let
+        pointValue =
+            calcValue p model.mines
+
+        newModel =
+            { model | revealed = ({ point = p, value = pointValue } :: model.revealed) }
+    in
+        if List.member p model.mines then
+            update GameOver model
+        else if pointValue == 0 then
+            ( newModel, Cmd.batch (guessEach (surrounds p)) )
+        else
+            ( newModel, Cmd.none )
+
+
+guessEach : List Point -> List (Cmd Msg)
+guessEach surrounding =
+    List.map (Task.perform Guess) (List.map Task.succeed surrounding)
 
 
 numMines : Size -> Int
@@ -140,6 +168,40 @@ numMines size =
 
         Large ->
             45
+
+
+calcValue : Point -> List Point -> Int
+calcValue point mines =
+    let
+        surrPoints =
+            surrounds point
+    in
+        List.length (List.filter (\x -> List.member x mines) surrPoints)
+
+
+
+{--
+x-1y+1 xy+1 x+1y+1
+  x-1y xy   x+1y
+x-1y-1 xy-1 x+1y-1
+--}
+
+
+surrounds : Point -> List Point
+surrounds point =
+    let
+        ( x, y ) =
+            point
+    in
+        [ ( x - 1, y + 1 )
+        , ( x, y + 1 )
+        , ( x + 1, y + 1 )
+        , ( x - 1, y )
+        , ( x + 1, y )
+        , ( x - 1, y - 1 )
+        , ( x, y - 1 )
+        , ( x + 1, y - 1 )
+        ]
 
 
 
@@ -156,9 +218,10 @@ view model =
             Playing ->
                 div [ id "playing-area", class className ] (viewCells model)
 
-            Waiting ->
+            Waiting t ->
                 div []
-                    [ button [ onClick (Play Small) ] [ text "Easy" ]
+                    [ text t
+                    , button [ onClick (Play Small) ] [ text "Easy" ]
                     , button [ onClick (Play Medium) ] [ text "Medium" ]
                     , button [ onClick (Play Large) ] [ text "Hard" ]
                     ]
@@ -180,9 +243,54 @@ cell model row col =
         point =
             ( row, col )
 
+        zeros =
+            pointFromValPoint (pointWeight 0) model.revealed
+
+        ones =
+            pointFromValPoint (pointWeight 1) model.revealed
+
+        twos =
+            pointFromValPoint (pointWeight 2) model.revealed
+
+        threes =
+            pointFromValPoint (pointWeight 3) model.revealed
+
+        fours =
+            pointFromValPoint (pointWeight 4) model.revealed
+
+        fives =
+            pointFromValPoint (pointWeight 5) model.revealed
+
+        sixes =
+            pointFromValPoint (pointWeight 6) model.revealed
+
+        sevens =
+            pointFromValPoint (pointWeight 7) model.revealed
+
+        eights =
+            pointFromValPoint (pointWeight 8) model.revealed
+
         classNames =
             if List.member point model.flags then
                 "cell flag"
+            else if List.member point ones then
+                "cell one"
+            else if List.member point twos then
+                "cell two"
+            else if List.member point threes then
+                "cell three"
+            else if List.member point fours then
+                "cell four"
+            else if List.member point fives then
+                "cell five"
+            else if List.member point sixes then
+                "cell six"
+            else if List.member point sevens then
+                "cell seven"
+            else if List.member point eights then
+                "cell eight"
+            else if List.member point zeros then
+                "cell revealed"
             else
                 "cell"
     in
@@ -191,12 +299,20 @@ cell model row col =
 
 onRightClick : Msg -> Attribute Msg
 onRightClick message =
-    onWithOptions
-        "oncontextmenu"
-        { stopPropagation = True
-        , preventDefault = True
-        }
-        (Json.succeed message)
+    onWithOptions "contextmenu" { stopPropagation = True, preventDefault = True } (Json.succeed message)
+
+
+pointFromValPoint : (ValPoint -> List a -> List a) -> List ValPoint -> List a
+pointFromValPoint func =
+    List.foldl func []
+
+
+pointWeight : Int -> ValPoint -> List Point -> List Point
+pointWeight num x a =
+    if x.value == num then
+        x.point :: a
+    else
+        a
 
 
 
