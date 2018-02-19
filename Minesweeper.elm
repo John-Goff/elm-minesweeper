@@ -6,6 +6,7 @@ import Html.Attributes exposing (class, id)
 import Random exposing (Generator, int, pair)
 import Json.Decode as Json
 import Task exposing (Task)
+import Trampoline
 
 
 -- msg
@@ -16,7 +17,6 @@ type Msg
     | NewMine Point
     | NewFlag Point
     | Play Size
-    | GameOver
 
 
 
@@ -126,16 +126,13 @@ update msg model =
             ( { model | flags = (f :: model.flags) }, Cmd.none )
 
         Guess p ->
-            guess p model
+            ( guess p model, Cmd.none )
 
         Play s ->
             ( { initialModel | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
 
-        GameOver ->
-            ( { model | gameStatus = Waiting "Game Over!" }, Cmd.none )
 
-
-guess : Point -> Model -> ( Model, Cmd Msg )
+guess : Point -> Model -> Model
 guess p model =
     let
         pointValue =
@@ -145,11 +142,11 @@ guess p model =
             { model | revealed = ({ point = p, value = pointValue } :: model.revealed) }
     in
         if List.member p model.mines then
-            update GameOver model
+            { model | gameStatus = Waiting "Game Over!" }
         else if pointValue == 0 then
-            ( newModel, Cmd.batch (guessEach (surrounding p)) )
+            List.foldl guess model (surrounding p)
         else
-            ( newModel, Cmd.none )
+            newModel
 
 
 guessEach : List Point -> List (Cmd Msg)
