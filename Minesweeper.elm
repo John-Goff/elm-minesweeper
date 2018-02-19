@@ -172,11 +172,7 @@ numMines size =
 
 calcValue : Point -> List Point -> Int
 calcValue point mines =
-    let
-        surrPoints =
-            surrounding point
-    in
-        List.length (List.filter (\x -> List.member x mines) surrPoints)
+    List.length (List.filter (\x -> List.member x mines) (surrounding point))
 
 
 
