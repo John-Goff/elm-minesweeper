@@ -5,7 +5,7 @@ import Html.Events exposing (onClick, onWithOptions)
 import Html.Attributes exposing (class, id)
 import Random exposing (Generator, int, pair)
 import Json.Decode as Json
-import Task exposing (Task)
+import List.Extra
 
 
 -- msg
@@ -125,32 +125,72 @@ update msg model =
             ( { model | flags = (f :: model.flags) }, Cmd.none )
 
         Guess p ->
-            ( guess p model, Cmd.none )
+            guess p model
 
         Play s ->
             ( { initialModel | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
 
 
-guess : Point -> Model -> Model
+guess : Point -> Model -> ( Model, Cmd Msg )
 guess p model =
     let
         pointValue =
             calcValue p model.mines
 
+        revealed =
+            pointFromValPoint (\x a -> x.point :: a) model.revealed
+
         newModel =
-            { model | revealed = ({ point = p, value = pointValue } :: model.revealed) }
+            if List.member p revealed then
+                model
+            else
+                { model | revealed = ({ point = p, value = pointValue } :: model.revealed) }
     in
         if List.member p model.mines then
-            { model | gameStatus = Waiting "Game Over!" }
+            ( { model | gameStatus = Waiting "Game Over!" }, Cmd.none )
         else if pointValue == 0 then
-            List.foldr guess model (surrounding p)
+            ( guessHelper (surrounding p) p newModel, Cmd.none )
+        else
+            ( newModel, Cmd.none )
+
+
+guessHelper : List Point -> Point -> Model -> Model
+guessHelper pts p model =
+    let
+        pointValue =
+            calcValue p model.mines
+
+        head =
+            case List.head pts of
+                Nothing ->
+                    ( -1, -1 )
+
+                Just n ->
+                    n
+
+        tail =
+            case List.tail pts of
+                Nothing ->
+                    []
+
+                Just n ->
+                    n
+
+        newPoint =
+            { point = p, value = pointValue }
+
+        newModel =
+            if List.member newPoint model.revealed then
+                model
+            else
+                { model | revealed = (newPoint :: model.revealed) }
+    in
+        if p == ( -1, -1 ) then
+            model
+        else if pointValue == 0 then
+            guessHelper (List.Extra.unique ((surrounding p) ++ tail)) head newModel
         else
             newModel
-
-
-guessEach : List Point -> List (Cmd Msg)
-guessEach surrounding =
-    List.map (Task.perform Guess) (List.map Task.succeed surrounding)
 
 
 numMines : Size -> Int
