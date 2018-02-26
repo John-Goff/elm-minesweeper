@@ -176,11 +176,14 @@ guessHelper pts p model =
                 Just n ->
                     n
 
+        revealed =
+            pointFromValPoint (\x a -> x.point :: a) model.revealed
+
         newPoint =
             { point = p, value = pointValue }
 
         newModel =
-            if List.member newPoint model.revealed then
+            if List.member p revealed then
                 model
             else
                 { model | revealed = (newPoint :: model.revealed) }
