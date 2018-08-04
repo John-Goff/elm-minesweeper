@@ -14,6 +14,7 @@ import List.Extra
 type Msg
     = Guess Point
     | NewMine Point
+    | Board
     | NewFlag Point
     | Play Size
 
@@ -33,8 +34,7 @@ newPoint size =
 
 type alias Model =
     { mines : List Point
-    , flags : List Point
-    , revealed : List ValPoint
+    , board : List Cell
     , boardSize : Size
     , gameStatus : GameState
     }
@@ -63,10 +63,23 @@ type alias Point =
     ( X, Y )
 
 
-type alias ValPoint =
-    { value : Int
+type alias Cell =
+    { display : Mark
     , point : Point
     }
+
+
+type Mark
+    = Flag
+    | One
+    | Two
+    | Three
+    | Four
+    | Five
+    | Six
+    | Seven
+    | Eight
+    | Bomb
 
 
 initialModel : Model
@@ -119,7 +132,10 @@ update msg model =
             if List.length model.mines <= (numMines model.boardSize) then
                 ( { model | mines = (m :: model.mines) }, Random.generate NewMine (newPoint model.boardSize) )
             else
-                ( model, Cmd.none )
+                update Board model
+
+        Board ->
+            ( { model | board = (newBoard model.mines) }, Cmd.none )
 
         NewFlag f ->
             ( { model | flags = (f :: model.flags) }, Cmd.none )
@@ -129,6 +145,16 @@ update msg model =
 
         Play s ->
             ( { initialModel | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
+
+
+newBoard : List Point -> List Cell
+newBoard mines =
+    newBoardHelper [] mines
+
+
+newBoardHelper : List Cell -> List Point -> List Cell
+newBoardHelper acc mines =
+    List.map (\x -> List.map (\y -> ))
 
 
 guess : Point -> Model -> ( Model, Cmd Msg )
