@@ -17,6 +17,7 @@
   "author": "John Goff",
   "license": "MIT",
   "dependencies": {
-    "http-server": "^0.11.1"
+    "http-server": "^0.11.1",
+    "npm": "^6.3.0"
   }
 }

@@ -110,7 +110,7 @@ body {
   background-color: red;
 }
 
-#game-over {
+#waiting {
   border: 5px solid red;
   margin: 100px 300px;
   text-align: center;

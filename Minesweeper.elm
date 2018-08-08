@@ -1,31 +1,63 @@
 module Minesweeper exposing (..)
 
 import Html exposing (..)
-import Html.Events exposing (onClick, onWithOptions)
-import Html.Attributes exposing (class, id)
-import Random exposing (Generator, int, pair)
-import Json.Decode as Json
-import List.Extra
+import Html.Attributes exposing (id)
+import Random exposing (Generator, int, list, map2)
+import Random.List exposing (shuffle)
 
 
 -- msg
 
 
 type Msg
-    = Guess Point
-    | NewMine Point
-    | Board
-    | NewFlag Point
-    | Play Size
+    = BeginGame
+    | NewBoard Board
+
+
+type Cell
+    = Open CellData
+    | Closed CellData
+
+
+type CellData
+    = Flag Point Adjacent
+    | Mine Point Adjacent
+    | Clear Point Adjacent
 
 
 
 -- generators
 
 
-newPoint : Size -> Generator Point
-newPoint size =
-    pair (int 0 (upperLimit size)) (int 0 (upperLimit size))
+generateBoard : Size -> Generator Board
+generateBoard size =
+    let
+        boardSizeInt =
+            size
+                |> upperLimit
+                |> indexByZero
+
+        numMines =
+            (upperLimit size) // 5
+
+        listOfClear =
+            List.repeat ((upperLimit size) - numMines) (Closed (Clear InvalidPoint 0))
+
+        listOfMines =
+            List.repeat numMines (Closed (Mine InvalidPoint 0))
+    in
+        listOfClear
+            ++ listOfMines
+            |> shuffle
+
+
+newPoint : Generator Point
+newPoint =
+    let
+        intGen =
+            int 0 (upperLimit Small)
+    in
+        map2 Point intGen intGen
 
 
 
@@ -33,10 +65,9 @@ newPoint size =
 
 
 type alias Model =
-    { mines : List Point
-    , board : List Cell
+    { board : Board
+    , gameState : GameState
     , boardSize : Size
-    , gameStatus : GameState
     }
 
 
@@ -59,36 +90,24 @@ type alias Y =
     Int
 
 
-type alias Point =
-    ( X, Y )
+type alias Adjacent =
+    Int
 
 
-type alias Cell =
-    { display : Mark
-    , point : Point
-    }
+type alias Board =
+    List Cell
 
 
-type Mark
-    = Flag
-    | One
-    | Two
-    | Three
-    | Four
-    | Five
-    | Six
-    | Seven
-    | Eight
-    | Bomb
+type Point
+    = Point X Y
+    | InvalidPoint
 
 
 initialModel : Model
 initialModel =
-    { mines = []
-    , flags = []
-    , revealed = []
+    { board = []
+    , gameState = Waiting "Please click to begin"
     , boardSize = Small
-    , gameStatus = Waiting ""
     }
 
 
@@ -107,18 +126,20 @@ upperLimit size =
 
 gameBoard : Size -> List Int
 gameBoard size =
-    List.range 0 (zeroed (upperLimit size))
+    size
+        |> upperLimit
+        |> indexByZero
+        |> List.range 0
 
 
-zeroed : Int -> Int
-zeroed num =
-    --needed to zero-index the resulting lists
+indexByZero : Int -> Int
+indexByZero num =
     num - 1
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( initialModel, Cmd.none )
+    ( initialModel, Random.generate NewBoard (generateBoard initialModel.boardSize) )
 
 
 
@@ -128,252 +149,40 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NewMine m ->
-            if List.length model.mines <= (numMines model.boardSize) then
-                ( { model | mines = (m :: model.mines) }, Random.generate NewMine (newPoint model.boardSize) )
-            else
-                update Board model
+        BeginGame ->
+            ( { model | gameState = Playing }, Cmd.none )
 
-        Board ->
-            ( { model | board = (newBoard model.mines) }, Cmd.none )
-
-        NewFlag f ->
-            ( { model | flags = (f :: model.flags) }, Cmd.none )
-
-        Guess p ->
-            guess p model
-
-        Play s ->
-            ( { initialModel | gameStatus = Playing, boardSize = s }, Random.generate NewMine (newPoint s) )
-
-
-newBoard : List Point -> List Cell
-newBoard mines =
-    newBoardHelper [] mines
-
-
-newBoardHelper : List Cell -> List Point -> List Cell
-newBoardHelper acc mines =
-    List.map (\x -> List.map (\y -> ))
-
-
-guess : Point -> Model -> ( Model, Cmd Msg )
-guess p model =
-    let
-        pointValue =
-            calcValue p model.mines
-
-        revealed =
-            pointFromValPoint (\x a -> x.point :: a) model.revealed
-
-        newModel =
-            if List.member p revealed then
-                model
-            else
-                { model | revealed = ({ point = p, value = pointValue } :: model.revealed) }
-    in
-        if List.member p model.mines then
-            ( { model | gameStatus = Waiting "Game Over!" }, Cmd.none )
-        else if pointValue == 0 then
-            ( guessHelper (surrounding p) p newModel, Cmd.none )
-        else
-            ( newModel, Cmd.none )
-
-
-guessHelper : List Point -> Point -> Model -> Model
-guessHelper pts p model =
-    let
-        pointValue =
-            calcValue p model.mines
-
-        head =
-            case List.head pts of
-                Nothing ->
-                    ( -1, -1 )
-
-                Just n ->
-                    n
-
-        tail =
-            case List.tail pts of
-                Nothing ->
-                    []
-
-                Just n ->
-                    n
-
-        revealed =
-            pointFromValPoint (\x a -> x.point :: a) model.revealed
-
-        newPoint =
-            { point = p, value = pointValue }
-
-        newModel =
-            if List.member p revealed then
-                model
-            else
-                { model | revealed = (newPoint :: model.revealed) }
-    in
-        if p == ( -1, -1 ) then
-            model
-        else if pointValue == 0 then
-            guessHelper (List.Extra.unique ((surrounding p) ++ tail)) head newModel
-        else
-            newModel
-
-
-numMines : Size -> Int
-numMines size =
-    case size of
-        Small ->
-            10
-
-        Medium ->
-            25
-
-        Large ->
-            45
-
-
-calcValue : Point -> List Point -> Int
-calcValue point mines =
-    List.length (List.filter (\x -> List.member x mines) (surrounding point))
-
-
-
-{--
-x-1y+1 xy+1 x+1y+1
-  x-1y xy   x+1y
-x-1y-1 xy-1 x+1y-1
---}
-
-
-surrounding : Point -> List Point
-surrounding point =
-    let
-        ( x, y ) =
-            point
-    in
-        [ ( x - 1, y + 1 )
-        , ( x, y + 1 )
-        , ( x + 1, y + 1 )
-        , ( x - 1, y )
-        , ( x + 1, y )
-        , ( x - 1, y - 1 )
-        , ( x, y - 1 )
-        , ( x + 1, y - 1 )
-        ]
-
-
-
--- view
+        NewBoard b ->
+            ( { model | board = b }, Cmd.none )
 
 
 view : Model -> Html Msg
 view model =
-    let
-        className =
-            "grid-" ++ (toString (upperLimit model.boardSize))
-    in
-        case model.gameStatus of
-            Playing ->
-                div [ id "playing-area", class className ] (viewCells model)
+    case model.gameState of
+        Waiting m ->
+            div []
+                [ button [] [ text "Click to begin" ]
+                , waitingGameView m
+                ]
 
-            Waiting t ->
-                div []
-                    [ text t
-                    , button [ onClick (Play Small) ] [ text "Easy" ]
-                    , button [ onClick (Play Medium) ] [ text "Medium" ]
-                    , button [ onClick (Play Large) ] [ text "Hard" ]
-                    ]
-
-
-viewCells : Model -> List (Html Msg)
-viewCells model =
-    List.concat (List.map (cellRow model) (gameBoard model.boardSize))
+        Playing ->
+            div [ id "playing-area" ]
+                [ button [] [ text "Small" ]
+                , button [] [ text "Medium" ]
+                , button [] [ text "Large" ]
+                , playingGameView
+                ]
 
 
-cellRow : Model -> X -> List (Html Msg)
-cellRow model row =
-    List.map (cell model row) (gameBoard model.boardSize)
+waitingGameView : String -> Html Msg
+waitingGameView waitingMessage =
+    div [ id "waiting" ]
+        [ h1 [] [ text waitingMessage ] ]
 
 
-cell : Model -> X -> Y -> Html Msg
-cell model row col =
-    let
-        point =
-            ( row, col )
-
-        zeros =
-            pointFromValPoint (pointWeight 0) model.revealed
-
-        ones =
-            pointFromValPoint (pointWeight 1) model.revealed
-
-        twos =
-            pointFromValPoint (pointWeight 2) model.revealed
-
-        threes =
-            pointFromValPoint (pointWeight 3) model.revealed
-
-        fours =
-            pointFromValPoint (pointWeight 4) model.revealed
-
-        fives =
-            pointFromValPoint (pointWeight 5) model.revealed
-
-        sixes =
-            pointFromValPoint (pointWeight 6) model.revealed
-
-        sevens =
-            pointFromValPoint (pointWeight 7) model.revealed
-
-        eights =
-            pointFromValPoint (pointWeight 8) model.revealed
-
-        classNames =
-            if List.member point model.flags then
-                "cell flag"
-            else if List.member point ones then
-                "cell one"
-            else if List.member point twos then
-                "cell two"
-            else if List.member point threes then
-                "cell three"
-            else if List.member point fours then
-                "cell four"
-            else if List.member point fives then
-                "cell five"
-            else if List.member point sixes then
-                "cell six"
-            else if List.member point sevens then
-                "cell seven"
-            else if List.member point eights then
-                "cell eight"
-            else if List.member point zeros then
-                "cell revealed"
-            else
-                "cell"
-    in
-        div [ class classNames, onClick (Guess point), onRightClick (NewFlag point) ] []
-
-
-onRightClick : Msg -> Attribute Msg
-onRightClick message =
-    onWithOptions "contextmenu" { stopPropagation = True, preventDefault = True } (Json.succeed message)
-
-
-pointFromValPoint : (ValPoint -> List a -> List a) -> List ValPoint -> List a
-pointFromValPoint func =
-    List.foldl func []
-
-
-pointWeight : Int -> ValPoint -> List Point -> List Point
-pointWeight num x a =
-    if x.value == num then
-        x.point :: a
-    else
-        a
+playingGameView : Html Msg
+playingGameView =
+    div [ id "playing-area" ] []
 
 
 
