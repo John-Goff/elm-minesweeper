@@ -20,7 +20,7 @@ type Cell
 
 
 type alias CellData =
-    { cellStatus : CellStatus, point : Point, adjacent : Adjacent }
+    { status : CellStatus, point : Point, adjacent : Adjacent }
 
 
 type CellStatus
@@ -45,10 +45,11 @@ generateBoard size =
             (upperLimit size) // 5
 
         listOfClear =
-            List.repeat ((upperLimit size) - numMines) (Closed (Clear InvalidPoint 0))
+            List.repeat ((upperLimit size) - numMines)
+                (Closed { status = Clear, point = InvalidPoint, adjacent = 0 })
 
         listOfMines =
-            List.repeat numMines (Closed (Mine InvalidPoint 0))
+            List.repeat numMines (Closed { status = Mine, point = InvalidPoint, adjacent = 0 })
     in
         listOfClear
             ++ listOfMines
@@ -166,33 +167,26 @@ mapNewBoard size board =
         boardWithPoints =
             List.concatMap (generateBoardRow size) (gameBoard size)
     in
-        List.map (mapPoints board) boardWithPoints
+        List.map2 mapPoints board boardWithPoints
 
 
-mapPoints : Board -> Cell -> Board
-mapPoints oldBoard cell =
+mapPoints : Cell -> Cell -> Cell
+mapPoints oldCell cell =
     let
-        index =
+        cellData =
             case cell of
                 Open cd ->
-                    case cd.point of
-                        Point x y ->
-                            x + y
-
-                        _ ->
-                            -1
+                    cd
 
                 Closed cd ->
-                    case cd.point of
-                        Point x y ->
-                            x + y
-
-                        _ ->
-                            -1
+                    cd
     in
-        oldBoard
-            |> Array.fromList
-            |> Array.get index
+        case oldCell of
+            Open cd ->
+                Open { cd | point = cellData.point }
+
+            Closed cd ->
+                Closed { cd | point = cellData.point }
 
 
 generateBoardRow : Size -> X -> Board
@@ -202,7 +196,7 @@ generateBoardRow size x =
 
 mapCell : X -> Y -> Cell
 mapCell x y =
-    Closed (Clear (Point x y) 0)
+    Closed { status = Clear, point = (Point x y), adjacent = 0 }
 
 
 view : Model -> Html Msg
