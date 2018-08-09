@@ -158,11 +158,11 @@ update msg model =
             ( { model | gameState = Playing }, Cmd.none )
 
         NewBoard b ->
-            ( { model | board = (mapNewBoard model.boardSize b) }, Cmd.none )
+            ( { model | board = (updateBoardWithPoints model.boardSize b) }, Cmd.none )
 
 
-mapNewBoard : Size -> Board -> Board
-mapNewBoard size board =
+updateBoardWithPoints : Size -> Board -> Board
+updateBoardWithPoints size board =
     let
         boardWithPoints =
             List.concatMap (generateBoardRow size) (gameBoard size)
