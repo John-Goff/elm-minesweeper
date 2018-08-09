@@ -1,7 +1,8 @@
 module Minesweeper exposing (..)
 
 import Html exposing (..)
-import Html.Attributes exposing (id)
+import Html.Attributes exposing (id, class)
+import Html.Events exposing (onClick)
 import Random exposing (Generator, int, list, map2)
 import Random.List exposing (shuffle)
 
@@ -12,6 +13,7 @@ import Random.List exposing (shuffle)
 type Msg
     = BeginGame
     | NewBoard Board
+    | RevealCell
 
 
 type Cell
@@ -45,7 +47,7 @@ generateBoard size =
             (upperLimit size) // 5
 
         listOfClear =
-            List.repeat ((upperLimit size) - numMines)
+            List.repeat (((upperLimit size) ^ 2) - numMines)
                 (Closed { status = Clear, point = InvalidPoint, adjacent = 0 })
 
         listOfMines =
@@ -112,7 +114,7 @@ initialModel : Model
 initialModel =
     { board = []
     , gameState = Waiting "Please click to begin"
-    , boardSize = Small
+    , boardSize = Medium
     }
 
 
@@ -160,6 +162,9 @@ update msg model =
         NewBoard b ->
             ( { model | board = (updateBoardWithPoints model.boardSize b) }, Cmd.none )
 
+        RevealCell ->
+            ( model, Cmd.none )
+
 
 updateBoardWithPoints : Size -> Board -> Board
 updateBoardWithPoints size board =
@@ -167,7 +172,7 @@ updateBoardWithPoints size board =
         boardWithPoints =
             List.concatMap (generateBoardRow size) (gameBoard size)
     in
-        List.map2 mapPoints board boardWithPoints
+        List.map2 mapPoints (Debug.log "board" board) boardWithPoints
 
 
 mapPoints : Cell -> Cell -> Cell
@@ -204,7 +209,7 @@ view model =
     case model.gameState of
         Waiting m ->
             div []
-                [ button [] [ text "Click to begin" ]
+                [ button [ onClick BeginGame ] [ text "Click to begin" ]
                 , waitingGameView m
                 ]
 
@@ -213,7 +218,7 @@ view model =
                 [ button [] [ text "Small" ]
                 , button [] [ text "Medium" ]
                 , button [] [ text "Large" ]
-                , playingGameView
+                , playingGameView model
                 ]
 
 
@@ -223,9 +228,56 @@ waitingGameView waitingMessage =
         [ h1 [] [ text waitingMessage ] ]
 
 
-playingGameView : Html Msg
-playingGameView =
-    div [ id "playing-area" ] []
+playingGameView : Model -> Html Msg
+playingGameView model =
+    let
+        className =
+            case model.boardSize of
+                Small ->
+                    "grid-15"
+
+                Medium ->
+                    "grid-30"
+
+                Large ->
+                    "grid-45"
+    in
+        div [ id "playing-area", class className ] (listBoard model.board)
+
+
+listBoard : Board -> List (Html Msg)
+listBoard board =
+    List.map cellView board
+
+
+cellView : Cell -> Html Msg
+cellView cell =
+    case cell of
+        Closed cd ->
+            div [ class "cell", onClick RevealCell ] []
+
+        Open cd ->
+            div [ class "cell revealed" ] []
+
+
+pointFromCell : Cell -> Point
+pointFromCell cell =
+    case cell of
+        Open cd ->
+            cd.point
+
+        Closed cd ->
+            cd.point
+
+
+textFromPoint : Point -> Html Msg
+textFromPoint point =
+    case point of
+        InvalidPoint ->
+            text "invalid"
+
+        Point x y ->
+            text ((toString x) ++ ", " ++ (toString y))
 
 
 
