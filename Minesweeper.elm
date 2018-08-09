@@ -19,10 +19,14 @@ type Cell
     | Closed CellData
 
 
-type CellData
-    = Flag Point Adjacent
-    | Mine Point Adjacent
-    | Clear Point Adjacent
+type alias CellData =
+    { cellStatus : CellStatus, point : Point, adjacent : Adjacent }
+
+
+type CellStatus
+    = Flag
+    | Mine
+    | Clear
 
 
 
@@ -153,7 +157,52 @@ update msg model =
             ( { model | gameState = Playing }, Cmd.none )
 
         NewBoard b ->
-            ( { model | board = b }, Cmd.none )
+            ( { model | board = (mapNewBoard model.boardSize b) }, Cmd.none )
+
+
+mapNewBoard : Size -> Board -> Board
+mapNewBoard size board =
+    let
+        boardWithPoints =
+            List.concatMap (generateBoardRow size) (gameBoard size)
+    in
+        List.map (mapPoints board) boardWithPoints
+
+
+mapPoints : Board -> Cell -> Board
+mapPoints oldBoard cell =
+    let
+        index =
+            case cell of
+                Open cd ->
+                    case cd.point of
+                        Point x y ->
+                            x + y
+
+                        _ ->
+                            -1
+
+                Closed cd ->
+                    case cd.point of
+                        Point x y ->
+                            x + y
+
+                        _ ->
+                            -1
+    in
+        oldBoard
+            |> Array.fromList
+            |> Array.get index
+
+
+generateBoardRow : Size -> X -> Board
+generateBoardRow size x =
+    List.map (mapCell x) (gameBoard size)
+
+
+mapCell : X -> Y -> Cell
+mapCell x y =
+    Closed (Clear (Point x y) 0)
 
 
 view : Model -> Html Msg
