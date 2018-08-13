@@ -5,6 +5,7 @@ import Html.Attributes exposing (id, class)
 import Html.Events exposing (onClick)
 import Random exposing (Generator, int, list, map2)
 import Random.List exposing (shuffle)
+import List.Extra
 
 
 -- msg
@@ -13,19 +14,23 @@ import Random.List exposing (shuffle)
 type Msg
     = BeginGame
     | NewBoard Board
-    | RevealCell
-
-
-type Cell
-    = Open CellData
-    | Closed CellData
-
-
-type alias CellData =
-    { status : CellStatus, point : Point, adjacent : Adjacent }
+    | RevealCell Cell Int
 
 
 type CellStatus
+    = Open
+    | Closed
+
+
+type alias Cell =
+    { status : CellStatus
+    , cellType : CellType
+    , point : Point
+    , adjacent : Adjacent
+    }
+
+
+type CellType
     = Flag
     | Mine
     | Clear
@@ -48,23 +53,14 @@ generateBoard size =
 
         listOfClear =
             List.repeat (((upperLimit size) ^ 2) - numMines)
-                (Closed { status = Clear, point = InvalidPoint, adjacent = 0 })
+                { status = Closed, cellType = Clear, point = InvalidPoint, adjacent = 0 }
 
         listOfMines =
-            List.repeat numMines (Closed { status = Mine, point = InvalidPoint, adjacent = 0 })
+            List.repeat numMines { status = Closed, cellType = Mine, point = InvalidPoint, adjacent = 0 }
     in
         listOfClear
             ++ listOfMines
             |> shuffle
-
-
-newPoint : Generator Point
-newPoint =
-    let
-        intGen =
-            int 0 (upperLimit Small)
-    in
-        map2 Point intGen intGen
 
 
 
@@ -106,7 +102,7 @@ type alias Board =
 
 
 type Point
-    = Point X Y
+    = Point ( X, Y )
     | InvalidPoint
 
 
@@ -160,10 +156,16 @@ update msg model =
             ( { model | gameState = Playing }, Cmd.none )
 
         NewBoard b ->
-            ( { model | board = (updateBoardWithPoints model.boardSize b) }, Cmd.none )
+            let
+                newBoard =
+                    b
+                        |> updateBoardWithPoints model.boardSize
+                        |> updateAdjacent
+            in
+                ( { model | board = updateBoardWithPoints model.boardSize b }, Cmd.none )
 
-        RevealCell ->
-            ( model, Cmd.none )
+        RevealCell c i ->
+            ( { model | board = List.Extra.setAt i { c | status = Open } model.board }, Cmd.none )
 
 
 updateBoardWithPoints : Size -> Board -> Board
@@ -172,36 +174,79 @@ updateBoardWithPoints size board =
         boardWithPoints =
             List.concatMap (generateBoardRow size) (gameBoard size)
     in
-        List.map2 mapPoints (Debug.log "board" board) boardWithPoints
+        List.map2 mapPoints board boardWithPoints
+
+
+updateAdjacent : Board -> Board
+updateAdjacent board =
+    List.map (calculateAdjacent board) board
+
+
+calculateAdjacent : Board -> Cell -> Cell
+calculateAdjacent board cell =
+    let
+        numAdjacent =
+            cell
+                |> adjacentCells board
+                |> List.foldr sumMines 0
+    in
+        { cell | adjacent = numAdjacent }
+
+
+sumMines : Cell -> Int -> Int
+sumMines cell total =
+    if cell.cellType == Mine then
+        total + 1
+    else
+        total
+
+
+adjacentCells : Board -> Cell -> List Cell
+adjacentCells board cell =
+    let
+        adjacentPoints =
+            case cell.point of
+                Point ( x, y ) ->
+                    [ Point ( x - 1, y - 1 ), Point ( x - 1, y ), Point ( x - 1, y + 1 ), Point ( x, y - 1 ), Point ( x, y + 1 ), Point ( x + 1, y - 1 ), Point ( x + 1, y ), Point ( x + 1, y + 1 ) ]
+
+                InvalidPoint ->
+                    []
+    in
+        List.filterMap (cellFromPoint board) adjacentPoints
+
+
+cellFromPoint : Board -> Point -> Maybe Cell
+cellFromPoint board point =
+    case List.filter (cellHasPoint point) board of
+        [] ->
+            Nothing
+
+        a :: _ ->
+            Just a
+
+
+cellHasPoint : Point -> Cell -> Bool
+cellHasPoint point cell =
+    cell.point == point
 
 
 mapPoints : Cell -> Cell -> Cell
 mapPoints oldCell cell =
-    let
-        cellData =
-            case cell of
-                Open cd ->
-                    cd
-
-                Closed cd ->
-                    cd
-    in
-        case oldCell of
-            Open cd ->
-                Open { cd | point = cellData.point }
-
-            Closed cd ->
-                Closed { cd | point = cellData.point }
+    { oldCell | point = cell.point }
 
 
-generateBoardRow : Size -> X -> Board
+generateBoardRow : Size -> X -> List Cell
 generateBoardRow size x =
     List.map (mapCell x) (gameBoard size)
 
 
 mapCell : X -> Y -> Cell
 mapCell x y =
-    Closed { status = Clear, point = (Point x y), adjacent = 0 }
+    { status = Closed, cellType = Clear, point = (Point ( x, y )), adjacent = 0 }
+
+
+
+-- view
 
 
 view : Model -> Html Msg
@@ -247,27 +292,55 @@ playingGameView model =
 
 listBoard : Board -> List (Html Msg)
 listBoard board =
-    List.map cellView board
+    List.indexedMap cellView board
 
 
-cellView : Cell -> Html Msg
-cellView cell =
-    case cell of
-        Closed cd ->
-            div [ class "cell", onClick RevealCell ] []
+cellView : Int -> Cell -> Html Msg
+cellView index cell =
+    case cell.status of
+        Closed ->
+            div [ class "cell", onClick (RevealCell cell index) ] []
 
-        Open cd ->
-            div [ class "cell revealed" ] []
+        Open ->
+            let
+                className =
+                    case cell.cellType of
+                        Flag ->
+                            "flag"
 
+                        Mine ->
+                            "mine"
 
-pointFromCell : Cell -> Point
-pointFromCell cell =
-    case cell of
-        Open cd ->
-            cd.point
+                        Clear ->
+                            case cell.adjacent of
+                                1 ->
+                                    "one"
 
-        Closed cd ->
-            cd.point
+                                2 ->
+                                    "two"
+
+                                3 ->
+                                    "three"
+
+                                4 ->
+                                    "four"
+
+                                5 ->
+                                    "five"
+
+                                6 ->
+                                    "six"
+
+                                7 ->
+                                    "seven"
+
+                                8 ->
+                                    "eight"
+
+                                _ ->
+                                    "revealed"
+            in
+                div [ class ("cell " ++ className) ] []
 
 
 textFromPoint : Point -> Html Msg
@@ -276,7 +349,7 @@ textFromPoint point =
         InvalidPoint ->
             text "invalid"
 
-        Point x y ->
+        Point ( x, y ) ->
             text ((toString x) ++ ", " ++ (toString y))
 
 
