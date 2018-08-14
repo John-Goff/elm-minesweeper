@@ -24,6 +24,7 @@ type CellStatus
     = Open
     | Closed
     | Flag
+    | FlaggedMine
 
 
 type alias Cell =
@@ -198,7 +199,10 @@ revealMines =
     List.map
         (\c ->
             if c.cellType == Mine then
-                { c | status = Open }
+                if c.status == Flag then
+                    { c | status = FlaggedMine }
+                else
+                    { c | status = Open }
             else
                 c
         )
@@ -417,6 +421,9 @@ cellView clickable cell =
 
         Flag ->
             div [ class "cell flag" ] []
+
+        FlaggedMine ->
+            div [ class "cell flagged" ] []
 
 
 textFromPoint : Point -> Html Msg

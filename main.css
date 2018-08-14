@@ -71,6 +71,11 @@ body {
   background: url(flag.svg);
 }
 
+.flagged {
+  background-color: white;
+  background: url(flag2.svg);
+}
+
 .one {
   background-color: blue;
 }
