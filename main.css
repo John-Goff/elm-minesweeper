@@ -67,7 +67,8 @@ body {
 }
 
 .flag {
-  background-color: green;
+  background-color: white;
+  background: url(flag.svg);
 }
 
 .one {
@@ -107,7 +108,8 @@ body {
 }
 
 .mine {
-  background-color: darkred;
+  background-color: white;
+  background: url(mine.svg);
 }
 
 #waiting {

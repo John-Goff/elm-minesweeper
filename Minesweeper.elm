@@ -12,7 +12,7 @@ import List.Extra
 
 
 type Msg
-    = BeginGame
+    = BeginGame Size
     | NewBoard Board
     | RevealCell Cell
     | UpdateState GameState
@@ -155,8 +155,10 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        BeginGame ->
-            ( { model | gameState = Playing }, Random.generate NewBoard (generateBoard model.boardSize) )
+        BeginGame size ->
+            ( { model | gameState = Playing, boardSize = size }
+            , Random.generate NewBoard (generateBoard size)
+            )
 
         NewBoard b ->
             ( { model | board = newBoard model.boardSize b }, Cmd.none )
@@ -327,31 +329,31 @@ view : Model -> Html Msg
 view model =
     case model.gameState of
         Waiting ->
-            waitingView "Click to begin" "Please click to begin"
+            waitingView model.boardSize "Click to begin" "Please click to begin"
 
         Playing ->
             div [ id "playing-area" ]
-                [ button [] [ text "Small" ]
-                , button [] [ text "Medium" ]
-                , button [] [ text "Large" ]
+                [ button [ onClick (BeginGame Small) ] [ text "New Game (Small)" ]
+                , button [ onClick (BeginGame Medium) ] [ text "New Game (Medium)" ]
+                , button [ onClick (BeginGame Large) ] [ text "New Game (Large)" ]
                 , playingGameView model
                 ]
 
         GameOver ->
             div []
-                [ button [ onClick BeginGame ] [ text "Play Again?" ]
+                [ button [ onClick (BeginGame model.boardSize) ] [ text "Play Again?" ]
                 , div [ id "waiting" ] [ h1 [] [ text "Game Over!" ] ]
                 , playingGameView model
                 ]
 
         Victory ->
-            waitingView "Play Again?" "You Won!"
+            waitingView model.boardSize "Play Again?" "You Won!"
 
 
-waitingView : String -> String -> Html Msg
-waitingView buttonText headerText =
+waitingView : Size -> String -> String -> Html Msg
+waitingView size buttonText headerText =
     div []
-        [ button [ onClick BeginGame ] [ text buttonText ]
+        [ button [ onClick (BeginGame size) ] [ text buttonText ]
         , div [ id "waiting" ] [ h1 [] [ text headerText ] ]
         ]
 
@@ -370,19 +372,26 @@ playingGameView model =
                 Large ->
                     "grid-45"
     in
-        div [ id "playing-area", class className ] (listBoard model.board)
+        model.gameState
+            == GameOver
+            |> not
+            |> listBoard model.board
+            |> div [ id "playing-area", class className ]
 
 
-listBoard : Board -> List (Html Msg)
-listBoard board =
-    List.map cellView board
+listBoard : Board -> Bool -> List (Html Msg)
+listBoard board gameOver =
+    List.map (cellView gameOver) board
 
 
-cellView : Cell -> Html Msg
-cellView cell =
+cellView : Bool -> Cell -> Html Msg
+cellView clickable cell =
     case cell.status of
         Closed ->
-            div [ class "cell", onClick (RevealCell cell) ] []
+            if clickable then
+                div [ class "cell", onClick (RevealCell cell) ] []
+            else
+                div [ class "cell" ] []
 
         Open ->
             let
