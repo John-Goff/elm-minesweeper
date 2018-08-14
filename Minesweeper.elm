@@ -76,10 +76,10 @@ generateBoard size =
                     150
 
         listOfClear =
-            List.repeat (((upperLimit size) ^ 2) - numMines) (Cell Closed Clear InvalidPoint 0)
+            List.repeat (((upperLimit size) ^ 2) - numMines) <| Cell Closed Clear InvalidPoint 0
 
         listOfMines =
-            List.repeat numMines (Cell Closed Mine InvalidPoint 0)
+            List.repeat numMines <| Cell Closed Mine InvalidPoint 0
     in
         listOfClear
             ++ listOfMines
@@ -139,7 +139,7 @@ gameBoard : Size -> List Int
 gameBoard size =
     size
         |> upperLimit
-        |> (\num -> num - 1)
+        |> (-) 1
         |> List.range 0
 
 
@@ -201,11 +201,10 @@ revealMines =
 
 revealMine : Cell -> Cell
 revealMine cell =
-    if cell.cellType == Mine then
-        if cell.status == Flag then
-            { cell | status = FlaggedMine }
-        else
-            { cell | status = Open }
+    if cell.cellType == Mine && cell.status == Flag then
+        { cell | status = FlaggedMine }
+    else if cell.cellType == Mine then
+        { cell | status = Open }
     else
         cell
 
@@ -222,7 +221,7 @@ revealAllCells cellsToProcess board =
                     markCellOpen head board
 
                 cellsToAdd =
-                    List.filterMap (isCellInRemainder remainder) (adjacentInBoardToCell board head)
+                    List.filterMap (addCellToRemainder remainder) <| adjacentInBoardToCell newBoard head
             in
                 if head.adjacent == 0 then
                     revealAllCells (remainder ++ cellsToAdd) newBoard
@@ -235,8 +234,8 @@ markCellOpen cell board =
     List.Extra.replaceIf ((==) cell) { cell | status = Open } board
 
 
-isCellInRemainder : List Cell -> Cell -> Maybe Cell
-isCellInRemainder remainder cell =
+addCellToRemainder : List Cell -> Cell -> Maybe Cell
+addCellToRemainder remainder cell =
     if List.member cell remainder then
         Nothing
     else if cell.status == Open then
@@ -254,7 +253,7 @@ newBoard size board =
 
 updateBoardWithPoints : Size -> Board -> Board
 updateBoardWithPoints size board =
-    List.map2 mapPoints board (boardWithPoints size)
+    List.map2 transferPoint board (boardWithPoints size)
 
 
 boardWithPoints : Size -> Board
@@ -269,13 +268,14 @@ updateAdjacent board =
 
 calculateAdjacent : Board -> Cell -> Cell
 calculateAdjacent board cell =
-    let
-        numAdjacent =
-            cell
-                |> adjacentInBoardToCell board
-                |> List.foldr sumMines 0
-    in
-        { cell | adjacent = numAdjacent }
+    { cell | adjacent = numMinesAdjacent cell board }
+
+
+numMinesAdjacent : Cell -> Board -> Int
+numMinesAdjacent cell board =
+    cell
+        |> adjacentInBoardToCell board
+        |> List.foldr sumMines 0
 
 
 sumMines : Cell -> Int -> Int
@@ -314,13 +314,13 @@ cellFromPoint board point =
 
 
 cellHasPoint : Point -> Cell -> Bool
-cellHasPoint point cell =
-    cell.point == point
+cellHasPoint p { point } =
+    p == point
 
 
-mapPoints : Cell -> Cell -> Cell
-mapPoints oldCell cell =
-    { oldCell | point = cell.point }
+transferPoint : Cell -> Cell -> Cell
+transferPoint oldCell newCell =
+    { oldCell | point = newCell.point }
 
 
 generateBoardRow : Size -> X -> List Cell
