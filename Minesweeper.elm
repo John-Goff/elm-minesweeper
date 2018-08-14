@@ -14,7 +14,8 @@ import List.Extra
 type Msg
     = BeginGame
     | NewBoard Board
-    | RevealCell Cell Int
+    | RevealCell Cell
+    | UpdateState GameState
 
 
 type CellStatus
@@ -49,7 +50,7 @@ generateBoard size =
                 |> indexByZero
 
         numMines =
-            (upperLimit size) // 5
+            (upperLimit size) * 3
 
         listOfClear =
             List.repeat (((upperLimit size) ^ 2) - numMines)
@@ -82,7 +83,9 @@ type Size
 
 type GameState
     = Playing
-    | Waiting String
+    | Waiting
+    | GameOver
+    | Victory
 
 
 type alias X =
@@ -109,7 +112,7 @@ type Point
 initialModel : Model
 initialModel =
     { board = []
-    , gameState = Waiting "Please click to begin"
+    , gameState = Waiting
     , boardSize = Medium
     }
 
@@ -158,8 +161,61 @@ update msg model =
         NewBoard b ->
             ( { model | board = newBoard model.boardSize b }, Cmd.none )
 
-        RevealCell c i ->
-            ( { model | board = List.Extra.setAt i { c | status = Open } model.board }, Cmd.none )
+        RevealCell c ->
+            let
+                adjacentCells =
+                    adjacentInBoardToCell model.board c
+            in
+                case c.cellType of
+                    Clear ->
+                        if c.adjacent == 0 then
+                            ( { model | board = revealAllCells [ c ] model.board }, Cmd.none )
+                        else
+                            ( { model | board = markCellOpen c model.board }, Cmd.none )
+
+                    Mine ->
+                        update (UpdateState GameOver) model
+
+                    Flag ->
+                        ( model, Cmd.none )
+
+        UpdateState gs ->
+            ( { model | gameState = gs }, Cmd.none )
+
+
+revealAllCells : List Cell -> Board -> Board
+revealAllCells cellsToProcess board =
+    case cellsToProcess of
+        [] ->
+            board
+
+        head :: remainder ->
+            let
+                newBoard =
+                    markCellOpen head board
+
+                cellsToAdd =
+                    List.filterMap (cellsNotInRemainder remainder) (adjacentInBoardToCell board head)
+            in
+                if head.adjacent == 0 then
+                    revealAllCells (remainder ++ cellsToAdd) newBoard
+                else
+                    revealAllCells remainder newBoard
+
+
+markCellOpen : Cell -> Board -> Board
+markCellOpen cell board =
+    List.Extra.replaceIf ((==) cell) { cell | status = Open } board
+
+
+cellsNotInRemainder : List Cell -> Cell -> Maybe Cell
+cellsNotInRemainder remainder cell =
+    if List.member cell remainder then
+        Nothing
+    else if cell.status == Open then
+        Nothing
+    else
+        Just cell
 
 
 newBoard : Size -> Board -> Board
@@ -188,7 +244,7 @@ calculateAdjacent board cell =
     let
         numAdjacent =
             cell
-                |> adjacentToCellFromBoard board
+                |> adjacentInBoardToCell board
                 |> List.foldr sumMines 0
     in
         { cell | adjacent = numAdjacent }
@@ -202,8 +258,8 @@ sumMines cell total =
         total
 
 
-adjacentToCellFromBoard : Board -> Cell -> List Cell
-adjacentToCellFromBoard board cell =
+adjacentInBoardToCell : Board -> Cell -> List Cell
+adjacentInBoardToCell board cell =
     let
         adjacentPoints =
             case cell.point of
@@ -256,11 +312,8 @@ mapCell x y =
 view : Model -> Html Msg
 view model =
     case model.gameState of
-        Waiting m ->
-            div []
-                [ button [ onClick BeginGame ] [ text "Click to begin" ]
-                , waitingGameView m
-                ]
+        Waiting ->
+            waitingView "Click to begin" "Please click to begin"
 
         Playing ->
             div [ id "playing-area" ]
@@ -270,11 +323,19 @@ view model =
                 , playingGameView model
                 ]
 
+        GameOver ->
+            waitingView "Play Again?" "Sorry! Play Again"
 
-waitingGameView : String -> Html Msg
-waitingGameView waitingMessage =
-    div [ id "waiting" ]
-        [ h1 [] [ text waitingMessage ] ]
+        Victory ->
+            waitingView "Play Again?" "You Won!"
+
+
+waitingView : String -> String -> Html Msg
+waitingView buttonText headerText =
+    div []
+        [ button [ onClick BeginGame ] [ text buttonText ]
+        , div [ id "waiting" ] [ h1 [] [ text headerText ] ]
+        ]
 
 
 playingGameView : Model -> Html Msg
@@ -296,14 +357,14 @@ playingGameView model =
 
 listBoard : Board -> List (Html Msg)
 listBoard board =
-    List.indexedMap cellView board
+    List.map cellView board
 
 
-cellView : Int -> Cell -> Html Msg
-cellView index cell =
+cellView : Cell -> Html Msg
+cellView cell =
     case cell.status of
         Closed ->
-            div [ class "cell", onClick (RevealCell cell index) ] []
+            div [ class "cell", onClick (RevealCell cell) ] []
 
         Open ->
             let
@@ -316,33 +377,7 @@ cellView index cell =
                             "mine"
 
                         Clear ->
-                            case cell.adjacent of
-                                1 ->
-                                    "one"
-
-                                2 ->
-                                    "two"
-
-                                3 ->
-                                    "three"
-
-                                4 ->
-                                    "four"
-
-                                5 ->
-                                    "five"
-
-                                6 ->
-                                    "six"
-
-                                7 ->
-                                    "seven"
-
-                                8 ->
-                                    "eight"
-
-                                _ ->
-                                    "revealed"
+                            intToClass cell.adjacent
             in
                 div [ class ("cell " ++ className) ] []
 
@@ -355,6 +390,37 @@ textFromPoint point =
 
         Point ( x, y ) ->
             text ((toString x) ++ ", " ++ (toString y))
+
+
+intToClass : Int -> String
+intToClass num =
+    case num of
+        1 ->
+            "one"
+
+        2 ->
+            "two"
+
+        3 ->
+            "three"
+
+        4 ->
+            "four"
+
+        5 ->
+            "five"
+
+        6 ->
+            "six"
+
+        7 ->
+            "seven"
+
+        8 ->
+            "eight"
+
+        _ ->
+            "revealed"
 
 
 

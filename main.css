@@ -71,23 +71,23 @@ body {
 }
 
 .one {
-  background-color: purple;
+  background-color: blue;
 }
 
 .two {
-  background-color: #002099;
+  background-color: green;
 }
 
 .three {
-  background-color: #0030FF;
+  background-color: red;
 }
 
 .four {
-  background-color: #004FF0;
+  background-color: yellow;
 }
 
 .five {
-  background-color: #00FFa5;
+  background-color: orange;
 }
 
 .six {
@@ -107,7 +107,7 @@ body {
 }
 
 .mine {
-  background-color: red;
+  background-color: darkred;
 }
 
 #waiting {
