@@ -16,7 +16,7 @@ type Msg
     = BeginGame Size
     | NewBoard Board
     | RevealCell Cell
-    | MarkFlag Cell
+    | ChangeCellStatus Cell CellStatus
     | UpdateState GameState
 
 
@@ -53,7 +53,15 @@ generateBoard size =
                 |> indexByZero
 
         numMines =
-            (upperLimit size) * 2
+            case size of
+                Small ->
+                    5
+
+                Medium ->
+                    90
+
+                Large ->
+                    150
 
         listOfClear =
             List.repeat (((upperLimit size) ^ 2) - numMines)
@@ -168,30 +176,33 @@ update msg model =
 
         RevealCell c ->
             let
+                updatedBoard =
+                    if c.adjacent == 0 then
+                        revealAllCells [ c ] model.board
+                    else
+                        markCellOpen c model.board
+
+                updatedModel =
+                    { model | board = updatedBoard }
+
                 cellsWithoutMines =
-                    List.filter (\c -> c.cellType == Clear) model.board
+                    List.filter (\c -> c.cellType == Clear) updatedBoard
             in
                 if List.all (\c -> c.status == Open) cellsWithoutMines then
-                    update (UpdateState Victory) model
+                    update (UpdateState Victory) updatedModel
                 else
                     case c.cellType of
                         Clear ->
-                            if c.adjacent == 0 then
-                                ( { model | board = revealAllCells [ c ] model.board }, Cmd.none )
-                            else
-                                ( { model | board = markCellOpen c model.board }, Cmd.none )
+                            ( updatedModel, Cmd.none )
 
                         Mine ->
-                            update (UpdateState GameOver) model
+                            update (UpdateState GameOver) { model | board = revealMines updatedBoard }
 
-        MarkFlag cell ->
-            ( { model | board = List.Extra.replaceIf ((==) cell) { cell | status = Flag } model.board }, Cmd.none )
+        ChangeCellStatus cell state ->
+            ( { model | board = List.Extra.replaceIf ((==) cell) { cell | status = state } model.board }, Cmd.none )
 
         UpdateState gs ->
-            if gs == GameOver then
-                ( { model | gameState = gs, board = revealMines model.board }, Cmd.none )
-            else
-                ( { model | gameState = gs }, Cmd.none )
+            ( { model | gameState = gs }, Cmd.none )
 
 
 revealMines : Board -> Board
@@ -349,14 +360,10 @@ view model =
                 ]
 
         GameOver ->
-            div []
-                [ button [ onClick (BeginGame model.boardSize) ] [ text "Play Again?" ]
-                , div [ id "waiting" ] [ h1 [] [ text "Game Over!" ] ]
-                , playingGameView model
-                ]
+            finishedView model "Play Again?" "Game Over!"
 
         Victory ->
-            waitingView model.boardSize "Play Again?" "You Won!"
+            finishedView model "Play Again?" "You Won!"
 
 
 onRightClick : Msg -> Attribute Msg
@@ -369,6 +376,15 @@ waitingView size buttonText headerText =
     div []
         [ button [ onClick (BeginGame size) ] [ text buttonText ]
         , div [ id "waiting" ] [ h1 [] [ text headerText ] ]
+        ]
+
+
+finishedView : Model -> String -> String -> Html Msg
+finishedView model buttonText headerText =
+    div []
+        [ button [ onClick (BeginGame model.boardSize) ] [ text buttonText ]
+        , div [ id "waiting" ] [ h1 [] [ text headerText ] ]
+        , playingGameView model
         ]
 
 
@@ -387,15 +403,14 @@ playingGameView model =
                     "grid-45"
     in
         model.gameState
-            == GameOver
-            |> not
+            == Playing
             |> listBoard model.board
             |> div [ id "playing-area", class className ]
 
 
 listBoard : Board -> Bool -> List (Html Msg)
-listBoard board gameOver =
-    List.map (cellView gameOver) board
+listBoard board clickable =
+    List.map (cellView clickable) board
 
 
 cellView : Bool -> Cell -> Html Msg
@@ -403,7 +418,7 @@ cellView clickable cell =
     case cell.status of
         Closed ->
             if clickable then
-                div [ class "cell", onClick (RevealCell cell), onRightClick (MarkFlag cell) ] []
+                div [ class "cell", onClick (RevealCell cell), onRightClick (ChangeCellStatus cell Flag) ] []
             else
                 div [ class "cell" ] []
 
@@ -420,7 +435,7 @@ cellView clickable cell =
                 div [ class ("cell " ++ className) ] []
 
         Flag ->
-            div [ class "cell flag" ] []
+            div [ class "cell flag", onRightClick (ChangeCellStatus cell Closed) ] []
 
         FlaggedMine ->
             div [ class "cell flagged" ] []
