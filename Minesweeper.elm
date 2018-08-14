@@ -3,7 +3,7 @@ module Minesweeper exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (id, class)
 import Html.Events exposing (onClick, onWithOptions, Options)
-import Random exposing (Generator, int, list, map2)
+import Random exposing (Generator)
 import Random.List exposing (shuffle)
 import List.Extra
 import Json.Decode as Json
@@ -415,15 +415,21 @@ cellView clickable cell =
 
         Open ->
             let
+                adjacentString =
+                    intToClass cell.adjacent
+
                 className =
                     case cell.cellType of
                         Mine ->
                             "mine"
 
                         Clear ->
-                            intToClass cell.adjacent
+                            if cell.adjacent == 0 then
+                                "revealed"
+                            else
+                                adjacentString
             in
-                div [ class ("cell " ++ className) ] []
+                div [ class ("cell " ++ className) ] [ text adjacentString ]
 
         Flag ->
             div [ class "cell flag", onRightClick (ChangeCellStatus cell Closed) ] []
@@ -460,7 +466,7 @@ intToClass num =
             "eight"
 
         _ ->
-            "revealed"
+            ""
 
 
 
