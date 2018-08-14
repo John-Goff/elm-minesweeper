@@ -167,18 +167,21 @@ update msg model =
 
         RevealCell c ->
             let
-                adjacentCells =
-                    adjacentInBoardToCell model.board c
+                cellsWithoutMines =
+                    List.filter (\c -> c.cellType == Clear) model.board
             in
-                case c.cellType of
-                    Clear ->
-                        if c.adjacent == 0 then
-                            ( { model | board = revealAllCells [ c ] model.board }, Cmd.none )
-                        else
-                            ( { model | board = markCellOpen c model.board }, Cmd.none )
+                if List.all (\c -> c.status == Open) cellsWithoutMines then
+                    update (UpdateState Victory) model
+                else
+                    case c.cellType of
+                        Clear ->
+                            if c.adjacent == 0 then
+                                ( { model | board = revealAllCells [ c ] model.board }, Cmd.none )
+                            else
+                                ( { model | board = markCellOpen c model.board }, Cmd.none )
 
-                    Mine ->
-                        update (UpdateState GameOver) model
+                        Mine ->
+                            update (UpdateState GameOver) model
 
         MarkFlag cell ->
             ( { model | board = List.Extra.replaceIf ((==) cell) { cell | status = Flag } model.board }, Cmd.none )
