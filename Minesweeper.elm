@@ -2,10 +2,11 @@ module Minesweeper exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (id, class)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onWithOptions, Options)
 import Random exposing (Generator, int, list, map2)
 import Random.List exposing (shuffle)
 import List.Extra
+import Json.Decode as Json
 
 
 -- msg
@@ -15,12 +16,14 @@ type Msg
     = BeginGame Size
     | NewBoard Board
     | RevealCell Cell
+    | MarkFlag Cell
     | UpdateState GameState
 
 
 type CellStatus
     = Open
     | Closed
+    | Flag
 
 
 type alias Cell =
@@ -32,8 +35,7 @@ type alias Cell =
 
 
 type CellType
-    = Flag
-    | Mine
+    = Mine
     | Clear
 
 
@@ -50,7 +52,7 @@ generateBoard size =
                 |> indexByZero
 
         numMines =
-            (upperLimit size) * 3
+            (upperLimit size) * 2
 
         listOfClear =
             List.repeat (((upperLimit size) ^ 2) - numMines)
@@ -178,8 +180,8 @@ update msg model =
                     Mine ->
                         update (UpdateState GameOver) model
 
-                    Flag ->
-                        ( model, Cmd.none )
+        MarkFlag cell ->
+            ( { model | board = List.Extra.replaceIf ((==) cell) { cell | status = Flag } model.board }, Cmd.none )
 
         UpdateState gs ->
             if gs == GameOver then
@@ -350,6 +352,11 @@ view model =
             waitingView model.boardSize "Play Again?" "You Won!"
 
 
+onRightClick : Msg -> Attribute Msg
+onRightClick message =
+    onWithOptions "contextmenu" (Options True True) (Json.succeed message)
+
+
 waitingView : Size -> String -> String -> Html Msg
 waitingView size buttonText headerText =
     div []
@@ -389,7 +396,7 @@ cellView clickable cell =
     case cell.status of
         Closed ->
             if clickable then
-                div [ class "cell", onClick (RevealCell cell) ] []
+                div [ class "cell", onClick (RevealCell cell), onRightClick (MarkFlag cell) ] []
             else
                 div [ class "cell" ] []
 
@@ -397,9 +404,6 @@ cellView clickable cell =
             let
                 className =
                     case cell.cellType of
-                        Flag ->
-                            "flag"
-
                         Mine ->
                             "mine"
 
@@ -407,6 +411,9 @@ cellView clickable cell =
                             intToClass cell.adjacent
             in
                 div [ class ("cell " ++ className) ] []
+
+        Flag ->
+            div [ class "cell flag" ] []
 
 
 textFromPoint : Point -> Html Msg
