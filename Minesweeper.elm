@@ -156,16 +156,17 @@ update msg model =
             ( { model | gameState = Playing }, Cmd.none )
 
         NewBoard b ->
-            let
-                newBoard =
-                    b
-                        |> updateBoardWithPoints model.boardSize
-                        |> updateAdjacent
-            in
-                ( { model | board = updateBoardWithPoints model.boardSize b }, Cmd.none )
+            ( { model | board = newBoard model.boardSize b }, Cmd.none )
 
         RevealCell c i ->
             ( { model | board = List.Extra.setAt i { c | status = Open } model.board }, Cmd.none )
+
+
+newBoard : Size -> Board -> Board
+newBoard size board =
+    board
+        |> updateBoardWithPoints size
+        |> updateAdjacent
 
 
 updateBoardWithPoints : Size -> Board -> Board
@@ -187,7 +188,7 @@ calculateAdjacent board cell =
     let
         numAdjacent =
             cell
-                |> adjacentCells board
+                |> adjacentToCellFromBoard board
                 |> List.foldr sumMines 0
     in
         { cell | adjacent = numAdjacent }
@@ -201,8 +202,8 @@ sumMines cell total =
         total
 
 
-adjacentCells : Board -> Cell -> List Cell
-adjacentCells board cell =
+adjacentToCellFromBoard : Board -> Cell -> List Cell
+adjacentToCellFromBoard board cell =
     let
         adjacentPoints =
             case cell.point of
@@ -221,8 +222,11 @@ cellFromPoint board point =
         [] ->
             Nothing
 
-        a :: _ ->
+        [ a ] ->
             Just a
+
+        _ ->
+            Nothing
 
 
 cellHasPoint : Point -> Cell -> Bool
