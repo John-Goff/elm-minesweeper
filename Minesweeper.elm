@@ -145,7 +145,7 @@ indexByZero num =
 
 init : ( Model, Cmd Msg )
 init =
-    ( initialModel, Random.generate NewBoard (generateBoard initialModel.boardSize) )
+    ( initialModel, Cmd.none )
 
 
 
@@ -156,7 +156,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         BeginGame ->
-            ( { model | gameState = Playing }, Cmd.none )
+            ( { model | gameState = Playing }, Random.generate NewBoard (generateBoard model.boardSize) )
 
         NewBoard b ->
             ( { model | board = newBoard model.boardSize b }, Cmd.none )
@@ -180,7 +180,21 @@ update msg model =
                         ( model, Cmd.none )
 
         UpdateState gs ->
-            ( { model | gameState = gs }, Cmd.none )
+            if gs == GameOver then
+                ( { model | gameState = gs, board = revealMines model.board }, Cmd.none )
+            else
+                ( { model | gameState = gs }, Cmd.none )
+
+
+revealMines : Board -> Board
+revealMines =
+    List.map
+        (\c ->
+            if c.cellType == Mine then
+                { c | status = Open }
+            else
+                c
+        )
 
 
 revealAllCells : List Cell -> Board -> Board
@@ -324,7 +338,11 @@ view model =
                 ]
 
         GameOver ->
-            waitingView "Play Again?" "Sorry! Play Again"
+            div []
+                [ button [ onClick BeginGame ] [ text "Play Again?" ]
+                , div [ id "waiting" ] [ h1 [] [ text "Game Over!" ] ]
+                , playingGameView model
+                ]
 
         Victory ->
             waitingView "Play Again?" "You Won!"
