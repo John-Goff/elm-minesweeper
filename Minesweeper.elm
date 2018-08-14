@@ -169,7 +169,7 @@ update msg model =
                     if c.adjacent == 0 then
                         revealAllCells [ c ] model.board
                     else
-                        markCellOpen c model.board
+                        updateCellStatus c Open model.board
 
                 updatedModel =
                     { model | board = updatedBoard }
@@ -188,7 +188,7 @@ update msg model =
                             update (UpdateState GameOver) { model | board = revealMines updatedBoard }
 
         ChangeCellStatus cell status ->
-            ( { model | board = List.Extra.replaceIf ((==) cell) { cell | status = status } model.board }, Cmd.none )
+            ( { model | board = updateCellStatus cell status model.board }, Cmd.none )
 
         UpdateState gs ->
             ( { model | gameState = gs }, Cmd.none )
@@ -217,21 +217,18 @@ revealAllCells cellsToProcess board =
 
         head :: remainder ->
             let
-                newBoard =
-                    markCellOpen head board
-
                 cellsToAdd =
-                    List.filterMap (addCellToRemainder remainder) <| adjacentInBoardToCell newBoard head
+                    List.filterMap (addCellToRemainder remainder) <| adjacentInBoardToCell (updateCellStatus head Open board) head
             in
                 if head.adjacent == 0 then
-                    revealAllCells (remainder ++ cellsToAdd) newBoard
+                    revealAllCells (remainder ++ cellsToAdd) (updateCellStatus head Open board)
                 else
-                    revealAllCells remainder newBoard
+                    revealAllCells remainder (updateCellStatus head Open board)
 
 
-markCellOpen : Cell -> Board -> Board
-markCellOpen cell board =
-    List.Extra.replaceIf ((==) cell) { cell | status = Open } board
+updateCellStatus : Cell -> CellStatus -> Board -> Board
+updateCellStatus cell status board =
+    List.Extra.replaceIf ((==) cell) { cell | status = status } board
 
 
 addCellToRemainder : List Cell -> Cell -> Maybe Cell
@@ -288,16 +285,17 @@ sumMines cell total =
 
 adjacentInBoardToCell : Board -> Cell -> List Cell
 adjacentInBoardToCell board cell =
-    let
-        adjacentPoints =
-            case cell.point of
-                Point ( x, y ) ->
-                    [ Point ( x - 1, y - 1 ), Point ( x - 1, y ), Point ( x - 1, y + 1 ), Point ( x, y - 1 ), Point ( x, y + 1 ), Point ( x + 1, y - 1 ), Point ( x + 1, y ), Point ( x + 1, y + 1 ) ]
+    List.filterMap (cellFromPoint board) <| pointsAdjacentTo cell
 
-                InvalidPoint ->
-                    []
-    in
-        List.filterMap (cellFromPoint board) adjacentPoints
+
+pointsAdjacentTo : Cell -> List Point
+pointsAdjacentTo { point } =
+    case point of
+        Point ( x, y ) ->
+            List.map Point [ ( x - 1, y - 1 ), ( x - 1, y ), ( x - 1, y + 1 ), ( x, y - 1 ), ( x, y + 1 ), ( x + 1, y - 1 ), ( x + 1, y ), ( x + 1, y + 1 ) ]
+
+        InvalidPoint ->
+            []
 
 
 cellFromPoint : Board -> Point -> Maybe Cell
